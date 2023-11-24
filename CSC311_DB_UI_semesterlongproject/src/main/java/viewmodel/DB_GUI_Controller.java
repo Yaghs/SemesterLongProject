@@ -60,7 +60,7 @@ public class DB_GUI_Controller implements Initializable {
     @FXML
     private TextField EditStatus;
     @FXML
-    ComboBox<Major> majorComboBox;
+    ComboBox<Major> MajorComboBox;
     private final DbConnectivityClass cnUtil = new DbConnectivityClass();
     private final ObservableList<Person> data = cnUtil.getData();
 
@@ -80,13 +80,13 @@ public class DB_GUI_Controller implements Initializable {
             deleteButton.disableProperty().bind(tv.getSelectionModel().selectedItemProperty().isNull());
             addBtn.disableProperty().bind(Bindings.createBooleanBinding(() ->
                             first_name.getText().isEmpty() || last_name.getText().isEmpty() ||
-                                    department.getText().isEmpty() || majorComboBox.getValue() == null ||
+                                    department.getText().isEmpty() || MajorComboBox.getValue() == null ||
                                     email.getText().isEmpty(), first_name.textProperty(), last_name.textProperty(),
-                    department.textProperty(), majorComboBox.valueProperty(), email.textProperty()));
+                    department.textProperty(), MajorComboBox.valueProperty(), email.textProperty()));
 
             // Populate ComboBox for major
-            majorComboBox.setItems(FXCollections.observableArrayList(Major.values()));
-            System.out.println("ComboBox Items: " + majorComboBox.getItems()); // Debugging line
+           MajorComboBox.setItems(FXCollections.observableArrayList(Major.values()));
+            System.out.println("ComboBox Items: " + MajorComboBox.getItems()); // Debugging line
 
         } catch (Exception e) {
             MyLogger.makeLog("Exception occurred during initialization: " + e.getMessage());
@@ -97,26 +97,51 @@ public class DB_GUI_Controller implements Initializable {
     @FXML
     protected void addNewRecord() {
         if (validateFields()) {
-            Major selectedMajor = majorComboBox.getValue(); // This will get the selected Major enum value
-            Person p = new Person(first_name.getText(), last_name.getText(), department.getText(),
-                    selectedMajor.name(), email.getText(), imageURL.getText());
-            cnUtil.insertUser(p);
-            cnUtil.retrieveId(p);
-            p.setId(cnUtil.retrieveId(p));
-            data.add(p);
-            clearForm();
-            AddStatus.setOpacity(1.0);
+            // Retrieve the selected Major from the ComboBox
+            Major selectedMajor = MajorComboBox.getValue();
+
+            // Check if the selected major is not null
+            if (selectedMajor != null) {
+                // Create a new Person object with the selected major
+                Person p = new Person(first_name.getText(), last_name.getText(), department.getText(),
+                        selectedMajor.name(), email.getText(), imageURL.getText());
+
+                // Insert the new Person into the database and update UI
+                cnUtil.insertUser(p);
+                cnUtil.retrieveId(p);
+                p.setId(cnUtil.retrieveId(p));
+                data.add(p);
+
+                // Clear the form and update status
+                clearForm();
+                AddStatus.setText("Record added successfully.");
+                AddStatus.setOpacity(1.0);
+                DeleteStatus.setOpacity(0.0);
+                EditStatus.setOpacity(0.0);
+            } else {
+                // If major is not selected, set an error message
+                AddStatus.setText("Please select a major.");
+                AddStatus.setOpacity(1.0);
+                DeleteStatus.setOpacity(0.0);
+                EditStatus.setOpacity(0.0);
+            }
         } else {
             AddStatus.setText("Please fill in all fields correctly.");
+            AddStatus.setOpacity(1.0);
+            DeleteStatus.setOpacity(0.0);
+            EditStatus.setOpacity(0.0);
         }
     }
+
     private boolean validateFields() {
+        // Validation logic for the form fields
         return !first_name.getText().trim().isEmpty() &&
                 !last_name.getText().trim().isEmpty() &&
                 !department.getText().trim().isEmpty() &&
-                majorComboBox.getValue() != null &&
+                MajorComboBox.getValue() != null &&
                 !email.getText().trim().isEmpty();
     }
+
 
 
     @FXML
@@ -124,7 +149,7 @@ public class DB_GUI_Controller implements Initializable {
         first_name.setText("");
         last_name.setText("");
         department.setText("");
-        majorComboBox.setValue(null); // Clear ComboBox selection
+        MajorComboBox.setValue(null); // Clear ComboBox selection
         email.setText("");
         imageURL.setText("");
     }
@@ -166,23 +191,37 @@ public class DB_GUI_Controller implements Initializable {
     @FXML
     protected void editRecord() {
         // Get the selected person from the table
-        Person p = tv.getSelectionModel().getSelectedItem();
-        int index = data.indexOf(p);
+        Person selectedPerson = tv.getSelectionModel().getSelectedItem();
 
-        // Create a new Person object with updated information
-        Person p2 = new Person(index + 1, first_name.getText(), last_name.getText(), department.getText(),
-                major.getText(), email.getText(), imageURL.getText());
+        if (selectedPerson != null) {
+            int index = data.indexOf(selectedPerson);
 
-        // Update the person in the database
-        cnUtil.editUser(p.getId(), p2);
+            // Ensure MajorComboBox has a selected value
+            if (MajorComboBox.getValue() == null) {
+                EditStatus.setText("Please select a major.");
+                EditStatus.setOpacity(1.0);
+                return;
+            }
 
-        // Update the data list and select the updated record
-        data.remove(p);
-        data.add(index, p2);
-        tv.getSelectionModel().select(index);
-        DeleteStatus.setOpacity(0.0);
-        EditStatus.setOpacity(1.0);
-        AddStatus.setOpacity(0.0);
+            // Create a new Person object with the actual ID and updated values
+            Person updatedPerson = new Person(selectedPerson.getId(), first_name.getText(), last_name.getText(),
+                    department.getText(), MajorComboBox.getValue().name(), email.getText(),
+                    imageURL.getText());
+
+            // Update the person in the database and in the ObservableList
+            cnUtil.editUser(selectedPerson.getId(), updatedPerson);
+            data.set(index, updatedPerson);
+            tv.refresh();
+
+            // Update status messages
+            EditStatus.setText("Record updated successfully.");
+            EditStatus.setOpacity(1.0);
+            DeleteStatus.setOpacity(0.0);
+            AddStatus.setOpacity(0.0);
+        } else {
+            EditStatus.setText("No record selected for editing.");
+            EditStatus.setOpacity(1.0);
+        }
     }
 
     @FXML
@@ -223,7 +262,7 @@ public class DB_GUI_Controller implements Initializable {
         first_name.setText(p.getFirstName());
         last_name.setText(p.getLastName());
         department.setText(p.getDepartment());
-        majorComboBox.setValue(Major.valueOf(p.getMajor())); // Set ComboBox value
+        MajorComboBox.setValue(Major.valueOf(p.getMajor())); // Set ComboBox value
         email.setText(p.getEmail());
         imageURL.setText(p.getImageURL());
     }
